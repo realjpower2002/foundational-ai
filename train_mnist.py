@@ -72,14 +72,6 @@ val_size = int(len(x_train) * 0.2)
 x_val, y_val = x_train[:val_size], y_train[:val_size]
 x_train, y_train = x_train[val_size:], y_train[val_size:]
 
-# Now you can use x_train, y_train, x_test, and y_test
-print(f"x_train shape: {len(x_train)} samples")
-print(f"y_train shape: {len(y_train)} labels")
-print(f"x_val shape: {len(x_val)} samples")
-print(f"y_val shape: {len(y_val)} labels")
-print(f"x_test shape: {len(x_test)} samples")
-print(f"y_test shape: {len(y_test)} labels")
-
 # Function to flatten all images in a list
 def flatten_images(image_list):
     flattened_images = []
@@ -94,26 +86,38 @@ def flatten_images(image_list):
 
 
 
+# Training and validation inputs are first flattened 
 x_train = flatten_images(x_train)
 
 x_val = flatten_images(x_val)
 
-x_test = flatten_images(x_test)
+# Code for normalizing test images is borrowed from mpg
+x_test = flatten_images(x_test).transpose()
+
+# We obtain the mean and std dev across all samples for all features
+x_test_mean = np.mean(x_test, axis = 1, keepdims=True)
+x_test_std = np.std(x_test, axis = 1, keepdims=True)
+
+# Prevents nan for 0 std dev
+with np.errstate(divide='ignore', invalid='ignore'):
+    x_test = (x_test - x_test_mean) / x_test_std
+    x_test = np.nan_to_num(x_test, nan=0.0)
 
 
-print(x_train.shape)
-print(x_val.shape)
-print(x_test.shape)
-
+# Produces y array from vector
 y_train = np.array(y_train)[...,np.newaxis]
 y_val = np.array(y_val)[...,np.newaxis]
-y_test = np.array(y_test)[...,np.newaxis]
 
-print(y_train.shape)
-print(y_val.shape)
-print(y_test.shape)
+# Transpose this as well just to make sure dimensions
+# work (forward requires a column vector, whereas
+# train requires each new sample is on its own Row.)
+y_test = np.array(y_test)[...,np.newaxis].transpose()
+
+
 
 import mlp
+
+# Define activations and loss function
 
 activations = mlp.Sigmoid
 softmax = mlp.Softmax
@@ -127,23 +131,37 @@ multilayerperceptron = mlp.MultilayerPerceptron(
 
 ce = mlp.CrossEntropy
 
+# Train model
 
-training_loss, validation_loss = multilayerperceptron.train(x_train, y_train, x_val, y_val, loss_func=ce, epochs = 10, learning_rate=0.001, batch_size=128)
+training_loss, validation_loss = multilayerperceptron.train(x_train, y_train, x_val, y_val, loss_func=ce, epochs = 16, learning_rate=0.001, batch_size=512)
+
+# Predict classes for test input x_test
 
 y_pred = multilayerperceptron.forward(x_test)
 
+# Classes are then determined by obtaining the index in the output with the
+# greatest value
 
 y_pred_classes = y_pred
 y_test_classes = y_test
 
-print("y pred shape : ",y_pred_classes.shape)
-print("y test shape : ",y_pred_classes.shape)
-
 y_pred_classes = np.argmax(y_pred, axis=0)
 y_test_classes = np.argmax(y_test, axis=0)
 
-print(y_pred_classes[...,np.newaxis])
-print(y_test_classes[...,np.newaxis])
+# print(" PRED ")
+# for i, y_class in enumerate(y_pred_classes):
+#     print(y_class, sep = ' ')
+#     if i > 15:
+#         break
+
+# print(" TEST ")
+
+# for i, y_class in enumerate(y_test_classes):
+#     print(y_class, sep = ' ')
+#     if i > 15:
+#         break
+
+# Accuracy is determined empirically and reported
 
 accuracy = np.count_nonzero(y_pred_classes == y_test_classes)/y_test_classes.shape[0] * 100
 

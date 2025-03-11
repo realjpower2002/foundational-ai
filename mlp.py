@@ -17,29 +17,13 @@ def batch_generator(train_x, train_y, batch_size):
     and batch_y has shape (B, q). The last batch may be smaller.
     """
 
-    # print("Train x (batch) : ",np.shape(train_x))
-    # print("Train y (batch) : ",np.shape(train_y))
-
-    # print("Train y batch : ",train_y)
-
-    # Normalizing values : 
-    print(np.mean(train_x, axis = 0))
-    print(np.std(train_x, axis = 0))
-
     # Beginning, normalization step
     #
     # Start as one sample per row, so we are averaging along rows
     with np.errstate(divide='ignore', invalid='ignore'):
         train_x = (train_x - np.mean(train_x, axis = 0)) / (np.std(train_x, axis = 0))
 
-        # print("Mean across samples : ",np.shape(np.mean(train_x, axis = 0)))
-        # print("std dev across samples : ",np.shape(np.std(train_x, axis = 0)))
-
         train_x = np.nan_to_num(train_x, nan=0.0)
-
-
-    # Train x : 
-    # print("NEW TRAIN X !!!!! : ",train_x[0])
 
     # New arrays that will be created
     train_x_batches = []
@@ -69,16 +53,8 @@ def batch_generator(train_x, train_y, batch_size):
 
             train_y_batch.append(train_y[train_index])
 
-        if i == 0:
-            # print("Train x batch 1 : ",np.shape(train_x_batch))
-            # print("Train y batch 1 : ",np.shape(train_y_batch))
-            i+=1
-
         train_x_batches.append(np.array(train_x_batch))
         train_y_batches.append(np.array(train_y_batch))
-
-    # print("Train x batches : ",np.shape(train_x_batches))
-    # print("Train y batches : ",np.shape(train_y_batches))
 
     # Return np array of numpy arrays
     return train_x_batches, train_y_batches
@@ -114,12 +90,6 @@ class ActivationFunction(ABC):
 class Sigmoid(ActivationFunction):
     def forward(self, x: np.ndarray) -> np.ndarray:
 
-
-        # print(type(x))
-        # print(x.dtype)
-        # print("Sigmoid Input : ",x)
-        # # Define sigmoid using numpy functions
-        # print("Sigmoid Activation : ",(1 / (1 + np.exp(-x))))
         return 1 / (1 + np.exp(-x))
 
     def derivative(self, x: np.ndarray) -> np.ndarray:
@@ -178,7 +148,15 @@ class Softmax(ActivationFunction):
         summed_exps = np.sum(exps,axis=0)
 
         # divide columsn by column sums
-        return exps / summed_exps
+        #
+        # Not completely sure why but this can cause
+        # divide by zero errors
+        with np.errstate(divide='ignore', invalid='ignore'):
+            exps = exps / summed_exps
+
+            exps = np.nan_to_num(exps, nan=0.0)
+
+        return exps
     
     def derivative(self, x: np.ndarray) -> np.ndarray:
 
@@ -296,8 +274,6 @@ class Layer:
         self.W = np.array([[(random.random() * glorot_unit * 1 - glorot_unit * 0.5) 
                                           for w_cols in range(fan_in)] 
                                           for w_rows in range(fan_out)])
-        
-        # print("Initial Weights\n",self.W)
                     
         # Transpose to make array vertical
         self.b = np.ones((fan_out,1)) * 0.1
@@ -314,29 +290,13 @@ class Layer:
         # and input (fan_in x 1) to get new pre activation vector 
         # (fan_out x 1)
 
-        # print("Weight dimensions : ",np.shape(self.W))
-        # print("Input dimensions : ",np.shape(h))
-
         z = np.dot(self.W, h) + self.b
-
-        # print("Pre activation dimensions : ",np.shape(z))
-        # print("Pre-Activation : ",z,"\n    (Shape : ",z.shape,")")
-
-        # print("Pre activation : ")
-        # print(z)
-
-        # print("Z after combination : ",z)
 
         # Get output from activation function
         phi = self.activation_function.forward(self.activation_function, z)
 
-        # print("Activation : ",phi,"\n    (Shape : ",phi.shape,")")
-
         self.activations = phi
 
-        # print("Activation : ")
-
-        # Easy money
         return self.activations
 
     def backward(self, h: np.ndarray, delta: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -357,12 +317,7 @@ class Layer:
         # Compute pre-activation
         z = np.dot(self.W, h) + self.b
 
-        # print("W shape : ",self.W.shape)
-        # print("h shape : ",h.shape)
-        # print("Pre-activations : ",z)
 
-        #print("Backpropagating")
-        
         # region GET dL/dZ
 
         # For the output layer of a multiclass classifier specifically, 
@@ -372,26 +327,16 @@ class Layer:
         if(self.activation_function == Softmax):
             y_pred = self.activation_function.forward(self.activation_function, z)
 
-            # print("Predictions reduced from the pre-activations x (z) : ",y_pred)
-
             # Get y_true back by doing the reverse of the activation function
             # y_true = -dL_dA + y_pred
 
-            # print("Real y values : ",y_true)
-
             dL_dZ = dL_dA
-
-            # print("dL_dZ (softmax) : ",dL_dZ)
 
         else:
             # Get derivative of activation function for this pre-activation
             dA_dZ = self.activation_function.derivative(self.activation_function, z)
 
-            # print("dL_dA : ", dL_dA)
-            # print("dA_dZ : ",dA_dZ)
-
             dL_dZ = dL_dA * dA_dZ
-            # print("dL_dZ (NOT softmax) : ",dL_dZ)
 
         # endregion
 
@@ -401,25 +346,13 @@ class Layer:
 
         # Calculate dL_dW and dL_db
 
-        # print("Hadamarding dL_dA and dA_dZ : ")
         # Have to also divide by batch size to prevent gradient from exploding immediately 
 
         dL_dW = np.dot(dL_dZ, dZ_dW) / dL_dZ.shape[1]
         dL_db = np.sum(dL_dZ * dZ_db, axis=1, keepdims = True) / dL_dZ.shape[1]
 
-        # print("Change L wrt W")
-        # print(dL_dW)
-        # print("Change L wrt b")
-        # print(dL_db)
-
         # Calculate new delta
         self.delta = np.dot(np.transpose(self.W) , (dL_dZ))
-
-        # print("Got dL_dW : ",dL_dW.shape)
-        # print("Got dL_db : ",dL_db.shape)
-
-        # print("dL/dW : ",dL_dW,"\n    (Shape : ",dL_dW.shape,")")
-        # print("dL/db : ",dL_db,"\n    (Shape : ",dL_db.shape,")")
 
         return dL_dW, dL_db
 
@@ -464,8 +397,6 @@ class MultilayerPerceptron:
         # Go through layers in reverse calculating the new delta as we go.
         for layer_index in range(len(self.layers)-1,-1,-1):
 
-            # print("backpropping layer",layer_index)
-
             # Get the current layer
             layer = self.layers[layer_index]
 
@@ -483,11 +414,6 @@ class MultilayerPerceptron:
 
             # Next delta passed will be the one produced by this layer
             delta = self.layers[layer_index].delta
-
-
-        # print("Got dl_dw_all : ",dl_dw_all)
-        # for dl_dw in dl_dw_all:
-        #     print(dl_dw.shape)
 
         return dl_dw_all, dl_db_all
     
@@ -519,16 +445,9 @@ class MultilayerPerceptron:
         val_x = val_x[0].T
         val_y = val_y[0].T
 
-        # print("Train x : ",np.shape(train_x_batches))
-        # print("Train y : ",np.shape(train_y_batches))
-
-        # print("Validation X Shape : ",val_x.shape)
-
         # Keep training and validation losses to return later.
         training_losses = []
         validation_losses = []
-
-        # print("Length of batches list : ",len(train_x_batches))
 
         for epoch in range(epochs):
 
@@ -543,8 +462,6 @@ class MultilayerPerceptron:
                 # instead of vice versa for the data input into the model
                 batch = train_x_batches[batch_num].T
 
-                # print(np.shape(batch))
-
                 truth = train_y_batches[batch_num].T
 
                 
@@ -553,39 +470,16 @@ class MultilayerPerceptron:
                 # Refresh deltas and activations through forward propagation first
                 predictions = self.forward(batch)
 
-                # print("Predictions : ",predictions)
-                # print("Truth : ",truth)
-                # print("Mean prediction : ",np.mean(predictions))
-                # print("Activation of layer 2 : \n",self.layers[1].activations)
-
-                # print("Standard Deviation Predictions : ",np.std(predictions))
-
                 # Get loss gradient from truths and predictions
                 loss_gradient = loss_func.derivative(loss_func, truth, predictions)
 
-                # print("Loss Gradient : ",loss_gradient)
-
                 # Get weights and biases gradients for each layer during backpropagation
                 dl_dw_all, dl_db_all = self.backward(loss_gradient, batch)
-
-                # print("dL/dW : \n",dl_dw_all[1])
-
-                # print("dL/dW for all layers : ",dl_dw_all)
 
                 # Update weights and biases
                 for layer_index in range(len(self.layers)):
 
                     layer = self.layers[layer_index]
-
-                    # print(dl_dw_all[layer_index].shape)
-                    # print(dl_db_all[layer_index].shape)
-
-                    # Update weights and biases using weights and biases gradients
-                    # print("DL/dW Shape : ",dl_dw_all[layer_index])
-                    # print(dl_db_all[layer_index])
-
-                    # print("dl_dw : ", dl_dw_all[layer_index])
-                    # print("dl_db : ", dl_db_all[layer_index])
 
                     layer.W = layer.W - learning_rate * dl_dw_all[layer_index]
                     layer.b = layer.b - learning_rate * dl_db_all[layer_index]
@@ -597,7 +491,6 @@ class MultilayerPerceptron:
             training_loss /= len(train_x_batches)
 
             validation_predictions = self.forward(val_x)
-            # print("Validation Predictions : ",validation_predictions)
 
             validation_loss = np.sum(loss_func.loss(loss_func, val_y, validation_predictions))
 

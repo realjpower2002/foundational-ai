@@ -18,7 +18,6 @@ y = cleaned_data.iloc[:, -1]
 
 # Display the number of rows removed
 rows_removed = len(data) - len(cleaned_data)
-# print(f"Rows removed: {rows_removed}")
 
 from sklearn.model_selection import train_test_split
 
@@ -38,9 +37,8 @@ X_val, X_test, y_val, y_test = train_test_split(
     shuffle=True,
 )
 
-print(f"Samples in Training:   {len(X_train)}")
-print(f"Samples in Validation: {len(X_val)}")
-print(f"Samples in Testing:    {len(X_test)}")
+# Convert training and validation sets to numpy arrays with 
+# each sample on its own row
 
 import numpy as np 
 
@@ -50,9 +48,13 @@ y_train = y_train.to_numpy()[...,np.newaxis] # y_train is 1D and needs to be 2D
 x_val = X_val.to_numpy()
 y_val = y_val.to_numpy()[...,np.newaxis]
 
+
+
 import mlp
 
-activation = mlp.Sigmoid
+# Activations and loss functions are defined
+
+activation = mlp.Tanh
 linear = mlp.Linear
 
 multilayerperceptron = mlp.MultilayerPerceptron(
@@ -64,42 +66,63 @@ multilayerperceptron = mlp.MultilayerPerceptron(
 
 se = mlp.SquaredError
 
+# Define number of epochs
+num_epochs = 200
+
+# Train model
+
+training_loss, validation_loss = multilayerperceptron.train(x_train, y_train, x_val, y_val, loss_func=se, epochs = num_epochs, learning_rate=0.001, batch_size=4)
 
 
-mlp.batch_generator(x_train, y_train, 4)
-
-
-
-# print("Training Inputs : \n", x_train)
-# print("Training Labels : \n", y_train.T)
-
-
-training_loss, validation_loss = multilayerperceptron.train(x_train, y_train, x_val, y_val, loss_func=se, epochs = 100, learning_rate=0.001, batch_size=4)
-
+# Transpose test set input and output for forwarding
 
 x_test = X_test.to_numpy().transpose()
 x_test_mean = np.mean(x_test, axis = 1, keepdims=True)
 x_test_std = np.std(x_test, axis = 1, keepdims=True)
 x_test = (x_test - x_test_mean) / x_test_std
 
-
 y_test = y_test.to_numpy()[...,np.newaxis].transpose()
 
 
-print(x_test.shape)
-print(y_test.shape)
-
+# Produce predictions 
 
 y_pred = multilayerperceptron.forward(x_test)
-
-print("y_pred : \n",y_pred)
-print("y_test : \n",y_test)
     
+
+
 # This is essentially the average percent correct 
-def mre(y_true, y_pred):
-    return np.mean(np.abs(y_true - y_pred)), np.mean(np.abs(y_true)), np.mean(np.abs(y_pred))
+def mae(y_true, y_pred):
+    return np.mean(np.abs(y_true - y_pred) / y_true) * 100, np.mean(np.abs(y_true - y_pred)), np.mean(np.abs(y_true)), np.mean(np.abs(y_pred))
 
-avg_mpg_off, avg_mpg_true, avg_mpg_pred = mre(y_test, y_pred)
+mae_score, avg_mpg_off, avg_mpg_true, avg_mpg_pred = mae(y_test, y_pred)
 
+print("Predicted Y:",y_pred)
+print("True Y:",y_test)
 
-print("Accuracy : ",avg_mpg_off, "mpg off on average.",avg_mpg_true,"avg mpg and",avg_mpg_pred,"avg predicted mpg.")
+print("Accuracy:",mae_score, "(MAE Score).", avg_mpg_off, "mpg off on average.",avg_mpg_true,"avg mpg and",avg_mpg_pred,"avg predicted mpg.")
+
+loss = se.loss(se, y_true = y_test, y_pred = y_pred)
+print("Total Test Loss:",loss)
+
+# Generate matplotlib plots
+import matplotlib.pyplot as plt
+
+num_epochs = range(1,num_epochs+1)
+
+# Create the plot
+plt.plot(num_epochs, training_loss, label='Training Loss', color='blue', linestyle='-', marker='o')
+plt.plot(num_epochs, validation_loss, label='Validation Loss', color='red', linestyle='-', marker='x')
+
+# Adding labels and title
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.title('Training and Validation Loss Over Epochs')
+
+# Add a legend
+plt.legend()
+
+# Display the grid
+plt.grid(True)
+
+# Display the plot window
+plt.show()  # This is the command that opens the plot window
