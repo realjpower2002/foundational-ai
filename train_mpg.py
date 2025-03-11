@@ -74,7 +74,7 @@ mlp.batch_generator(x_train, y_train, 4)
 # print("Training Labels : \n", y_train.T)
 
 
-training_loss, validation_loss = multilayerperceptron.train(x_train, y_train, x_val, y_val, loss_func=se, epochs = 2000, learning_rate=0.001, batch_size=1)
+training_loss, validation_loss = multilayerperceptron.train(x_train, y_train, x_val, y_val, loss_func=se, epochs = 100, learning_rate=0.001, batch_size=4)
 
 
 x_test = X_test.to_numpy().transpose()

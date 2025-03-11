@@ -13,8 +13,33 @@ def batch_generator(train_x, train_y, batch_size):
     :param train_y (np.ndarray): Target values of shape (n, q).
     :param batch_size (int): The size of each batch.
 
-    :return tuple: (batch_x, batch_y) where batch_x has shape (B, f) and batch_y has shape (B, q). The last batch may be smaller.
+    :return tuple: (batch_x, batch_y) where batch_x has shape (B, f) 
+    and batch_y has shape (B, q). The last batch may be smaller.
     """
+
+    # print("Train x (batch) : ",np.shape(train_x))
+    # print("Train y (batch) : ",np.shape(train_y))
+
+    # print("Train y batch : ",train_y)
+
+    # Normalizing values : 
+    print(np.mean(train_x, axis = 0))
+    print(np.std(train_x, axis = 0))
+
+    # Beginning, normalization step
+    #
+    # Start as one sample per row, so we are averaging along rows
+    with np.errstate(divide='ignore', invalid='ignore'):
+        train_x = (train_x - np.mean(train_x, axis = 0)) / (np.std(train_x, axis = 0))
+
+        # print("Mean across samples : ",np.shape(np.mean(train_x, axis = 0)))
+        # print("std dev across samples : ",np.shape(np.std(train_x, axis = 0)))
+
+        train_x = np.nan_to_num(train_x, nan=0.0)
+
+
+    # Train x : 
+    # print("NEW TRAIN X !!!!! : ",train_x[0])
 
     # New arrays that will be created
     train_x_batches = []
@@ -23,6 +48,8 @@ def batch_generator(train_x, train_y, batch_size):
     # Number of batches we will use for training. This is used
     # to get the index for producing the training batches.
     num_train_batches = math.ceil(train_x.shape[0] / batch_size)
+
+    i = 0
 
     for batch_index in range(num_train_batches):
 
@@ -37,15 +64,24 @@ def batch_generator(train_x, train_y, batch_size):
             if train_index >= len(train_x):
                 break
         
+            # Append a length-784 row to the batch
             train_x_batch.append(train_x[train_index])
+
             train_y_batch.append(train_y[train_index])
+
+        if i == 0:
+            # print("Train x batch 1 : ",np.shape(train_x_batch))
+            # print("Train y batch 1 : ",np.shape(train_y_batch))
+            i+=1
 
         train_x_batches.append(np.array(train_x_batch))
         train_y_batches.append(np.array(train_y_batch))
 
+    # print("Train x batches : ",np.shape(train_x_batches))
+    # print("Train y batches : ",np.shape(train_y_batches))
 
     # Return np array of numpy arrays
-    return np.array(train_x_batches, dtype=object), np.array(train_y_batches, dtype=object)
+    return train_x_batches, train_y_batches
         
 
 
@@ -232,7 +268,7 @@ class CrossEntropy(LossFunction):
     # Suspiciously simple ...
     def derivative(self, y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
 
-        return -(y_true/y_pred)
+        return y_pred - y_true
 
 
 class Layer:
@@ -257,7 +293,7 @@ class Layer:
         glorot_unit = math.sqrt(6/(fan_in+fan_out))
 
         # Transpose to make rows go down and columns go out
-        self.W = np.array([[(random.random() * glorot_unit * 2 - glorot_unit) 
+        self.W = np.array([[(random.random() * glorot_unit * 1 - glorot_unit * 0.5) 
                                           for w_cols in range(fan_in)] 
                                           for w_rows in range(fan_out)])
         
@@ -278,9 +314,13 @@ class Layer:
         # and input (fan_in x 1) to get new pre activation vector 
         # (fan_out x 1)
 
+        # print("Weight dimensions : ",np.shape(self.W))
+        # print("Input dimensions : ",np.shape(h))
+
         z = np.dot(self.W, h) + self.b
 
-        #print("Pre-Activation : ",z,"\n    (Shape : ",z.shape,")")
+        # print("Pre activation dimensions : ",np.shape(z))
+        # print("Pre-Activation : ",z,"\n    (Shape : ",z.shape,")")
 
         # print("Pre activation : ")
         # print(z)
@@ -290,8 +330,8 @@ class Layer:
         # Get output from activation function
         phi = self.activation_function.forward(self.activation_function, z)
 
-        #print("Activation : ",phi,"\n    (Shape : ",phi.shape,")")
-        
+        # print("Activation : ",phi,"\n    (Shape : ",phi.shape,")")
+
         self.activations = phi
 
         # print("Activation : ")
@@ -335,11 +375,11 @@ class Layer:
             # print("Predictions reduced from the pre-activations x (z) : ",y_pred)
 
             # Get y_true back by doing the reverse of the activation function
-            y_true = dL_dA * -y_pred
+            # y_true = -dL_dA + y_pred
 
             # print("Real y values : ",y_true)
 
-            dL_dZ = y_pred - y_true
+            dL_dZ = dL_dA
 
             # print("dL_dZ (softmax) : ",dL_dZ)
 
@@ -400,7 +440,9 @@ class MultilayerPerceptron:
         """
 
         # Not really much to it...
+
         for layer in self.layers:
+
             x = layer.forward(x)
 
         return x
@@ -465,50 +507,51 @@ class MultilayerPerceptron:
         :return:
         """
 
+        # Generate all batches for training set
         train_x_batches, train_y_batches = batch_generator(train_x, train_y, batch_size)
 
-        print("Train X Batches : ",train_x_batches.shape)
-        print("Train Y Batches : ",train_y_batches.shape)
+        # Generate single large "batch" for validation set. This is done
+        # to use the same normalization on validation as on train.
+        val_x, val_y = batch_generator(val_x, val_y, np.shape(val_x)[0])
 
+        # Convert validation x and y to proper dimensions (rows = features, 
+        # columns = samples)
+        val_x = val_x[0].T
+        val_y = val_y[0].T
 
-        # I do this because my model uses rows as features and columns as samples,
-        # instead of vice versa for the data input into the model
-        val_x = val_x.transpose()
-        val_x = (val_x - np.mean(train_x)) / np.std(train_x)
+        # print("Train x : ",np.shape(train_x_batches))
+        # print("Train y : ",np.shape(train_y_batches))
 
-        val_y = val_y.transpose()
-
-        print("Validation X Shape : ",val_x.shape)
+        # print("Validation X Shape : ",val_x.shape)
 
         # Keep training and validation losses to return later.
         training_losses = []
         validation_losses = []
+
+        # print("Length of batches list : ",len(train_x_batches))
 
         for epoch in range(epochs):
 
             # new_learning_rate = 0.0001 + (0.03 - 0.0001) * np.exp(-0.005 * epoch)
 
             # Keep track of total loss values for all batches together
-            training_loss = 0
+            training_loss = 0 
 
             for batch_num in range(len(train_x_batches)):
 
-                # Normalize train_x batch. Just leave y untouched.
-                train_x = train_x_batches[batch_num].astype(np.float64).T
+                # I do this because my model uses rows as features and columns as samples,
+                # instead of vice versa for the data input into the model
+                batch = train_x_batches[batch_num].T
 
-                train_x = (train_x - np.mean(train_x)) / np.std(train_x)
+                # print(np.shape(batch))
 
-                train_y = train_y_batches[batch_num].astype(np.float64).T
+                truth = train_y_batches[batch_num].T
 
-                # print("Train X dimensions : ",train_x)
-
-
-                # print("Normalized Input Data : \n",train_x.shape)
-                # print("Normalized Input Data Shape: \n",train_x)
+                
 
 
                 # Refresh deltas and activations through forward propagation first
-                predictions = self.forward(train_x)
+                predictions = self.forward(batch)
 
                 # print("Predictions : ",predictions)
                 # print("Truth : ",truth)
@@ -518,10 +561,12 @@ class MultilayerPerceptron:
                 # print("Standard Deviation Predictions : ",np.std(predictions))
 
                 # Get loss gradient from truths and predictions
-                loss_gradient = loss_func.derivative(loss_func, train_y, predictions)
+                loss_gradient = loss_func.derivative(loss_func, truth, predictions)
+
+                # print("Loss Gradient : ",loss_gradient)
 
                 # Get weights and biases gradients for each layer during backpropagation
-                dl_dw_all, dl_db_all = self.backward(loss_gradient, train_x)
+                dl_dw_all, dl_db_all = self.backward(loss_gradient, batch)
 
                 # print("dL/dW : \n",dl_dw_all[1])
 
@@ -539,17 +584,20 @@ class MultilayerPerceptron:
                     # print("DL/dW Shape : ",dl_dw_all[layer_index])
                     # print(dl_db_all[layer_index])
 
+                    # print("dl_dw : ", dl_dw_all[layer_index])
+                    # print("dl_db : ", dl_db_all[layer_index])
+
                     layer.W = layer.W - learning_rate * dl_dw_all[layer_index]
                     layer.b = layer.b - learning_rate * dl_db_all[layer_index]
 
                 # Get new predictions (after updating weights and biases)
-                predictions = self.forward(train_x)
-                training_loss += loss_func.loss(loss_func, train_y, predictions)
+                predictions = self.forward(batch)
+                training_loss += loss_func.loss(loss_func, truth, predictions)
 
             training_loss /= len(train_x_batches)
 
             validation_predictions = self.forward(val_x)
-            print("Validation Predictions : ",validation_predictions)
+            # print("Validation Predictions : ",validation_predictions)
 
             validation_loss = np.sum(loss_func.loss(loss_func, val_y, validation_predictions))
 

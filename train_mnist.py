@@ -98,7 +98,7 @@ x_train = flatten_images(x_train)
 
 x_val = flatten_images(x_val)
 
-x_test = flatten_images(x_test).T
+x_test = flatten_images(x_test)
 
 
 print(x_train.shape)
@@ -107,7 +107,7 @@ print(x_test.shape)
 
 y_train = np.array(y_train)[...,np.newaxis]
 y_val = np.array(y_val)[...,np.newaxis]
-y_test = np.array(y_test)[...,np.newaxis].T
+y_test = np.array(y_test)[...,np.newaxis]
 
 print(y_train.shape)
 print(y_val.shape)
@@ -115,20 +115,20 @@ print(y_test.shape)
 
 import mlp
 
-sigmoid = mlp.Sigmoid
+activations = mlp.Sigmoid
 softmax = mlp.Softmax
 
 multilayerperceptron = mlp.MultilayerPerceptron(
-    (mlp.Layer(784, 50, sigmoid),
-     mlp.Layer(50,50, sigmoid),
-     mlp.Layer(50,50, sigmoid),
-     mlp.Layer(50,50, sigmoid),
-     mlp.Layer(50,10, softmax))
+    (mlp.Layer(784, 1500, activations),
+     mlp.Layer(1500,1500, activations),
+     mlp.Layer(1500,1500, activations),
+     mlp.Layer(1500,10, softmax))
 )
 
 ce = mlp.CrossEntropy
 
-training_loss, validation_loss = multilayerperceptron.train(x_train, y_train, x_val, y_val, loss_func=ce, epochs = 32, learning_rate=0.001, batch_size=256)
+
+training_loss, validation_loss = multilayerperceptron.train(x_train, y_train, x_val, y_val, loss_func=ce, epochs = 10, learning_rate=0.001, batch_size=128)
 
 y_pred = multilayerperceptron.forward(x_test)
 
